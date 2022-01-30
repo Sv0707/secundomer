@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
-import { interval, timer } from "rxjs";
-import { first, scan, share, startWith } from "rxjs/operators";
+import { useState, useEffect, useRef } from "react";
+import { interval, fromEvent } from "rxjs";
+import { buffer, debounceTime, map, filter, scan } from "rxjs/operators";
 import Button from "react-bootstrap/Button";
 import "bootstrap/dist/css/bootstrap.css";
 import s from "./App.module.css";
@@ -8,14 +8,25 @@ import s from "./App.module.css";
 const App = () => {
   const [time, setTime] = useState(0);
   const [timerOn, setTimerOn] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const click = fromEvent(ref.current, "click");
+
+    const doubleClick = click.pipe(
+      buffer(click.pipe(debounceTime(300))),
+      map((clicks) => clicks.length),
+      filter((clicksLength) => clicksLength === 2)
+    );
+
+    doubleClick.subscribe(() => {
+      setTimerOn(false);
+    });
+  }, []);
 
   useEffect(() => {
     const startInterval = interval(1000)
-      .pipe(
-        startWith(time),
-        scan((time) => time + 1000),
-        share()
-      )
+      .pipe(scan((time) => time + 1000, time))
       .subscribe((value) => {
         timerOn && setTime(value);
       });
@@ -25,14 +36,6 @@ const App = () => {
   const toggleButtonClick = () => {
     setTimerOn(!timerOn);
     timerOn && setTime(0);
-  };
-
-  const handleDoubleClick = () => {
-    timer(300)
-      .pipe(first())
-      .subscribe(() => {
-        setTimerOn(false);
-      });
   };
 
   return (
@@ -46,7 +49,7 @@ const App = () => {
         <Button onClick={toggleButtonClick} className={s.button}>
           {timerOn ? "Stop" : "Start"}
         </Button>
-        <Button onDoubleClick={handleDoubleClick} className={s.button}>
+        <Button ref={ref} className={s.button}>
           Wait
         </Button>
         <Button onClick={() => setTime(0)} className={s.button}>
